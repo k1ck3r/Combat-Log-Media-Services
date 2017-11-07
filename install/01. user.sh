@@ -4,7 +4,7 @@
 combatuser=$1
 
 if test -z "${combatuser}" ; then
-  printf "Combat Log username and systemd configuration\n"
+  printf "Combat Log username configuration\n"
   printf "Usage: $0 <user-name>\n"
   exit 1
 fi
