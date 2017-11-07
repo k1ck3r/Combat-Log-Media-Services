@@ -152,7 +152,7 @@ printf "## Installing packages: ${PACKAGE_LIST}...\n" | tee -a $LOGFILE
 ${INSTALL_CMD} ${PACKAGE_LIST} >> $LOGFILE 2>&1
 
 printf "## Installing multistreamer, sockexec, and postgres-auth-server...\n" | tee -a $LOGFILE
-./install 2>&1 | tee -a $LOGFILE
+#./install 2>&1 | tee -a $LOGFILE
 
 printf "## Installing/updated dehydrated...\n" | tee -a $LOGFILE
 if ! test -d /opt/dehydrated ; then
