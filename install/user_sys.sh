@@ -1,17 +1,24 @@
 #!/bin/bash
-
 # adding user and configure the systemd requirements
 
-printf "Creating $1 user\n"
+combatuser=$1
+
+if test -z "${combatuser}" ; then
+  printf "Combat Log username and systemd configuration\n"
+  printf "Usage: $0 <user-name>\n"
+  exit 1
+fi
+
+printf "Creating $combatuser user\n"
 if command -v useradd >/dev/null 2>&1 ; then
-  useradd -m -d /var/lib/$1 \
-    -r -s /usr/sbin/nologin $1 || true
+  useradd -m -d /var/lib/$combatuser \
+    -r -s /usr/sbin/nologin $combatuser || true
 elif command -v adduser >/dev/null 2>&1 ; then
-  adduser -h /var/lib/$1 \
+  adduser -h /var/lib/$combatuser \
     -s /sbin/nologin \
     -S -D $1 || true
 else
-  printf "Unable to add $1 user\n"
+  printf "Unable to add $combatuser user\n"
   exit 1
 fi
 
@@ -24,7 +31,7 @@ After=network.target
 
 [Service]
 ExecStart=/usr/local/bin/multistreamer -e production run
-User=$1
+User=$combatuser
 
 [Install]
 WantedBy=multi-user.target
@@ -37,7 +44,7 @@ After=network.target
 
 [Service]
 ExecStart=/usr/local/bin/sockexec -t0 /tmp/exec.sock
-User=$1
+User=$combatuser
 
 [Install]
 WantedBy=multi-user.target
@@ -51,7 +58,7 @@ After=network.target
 [Service]
 ExecStart=/usr/local/bin/postgres-auth-server -c /etc/postgres-auth-server/config.yaml run
 ExecStartPre=/usr/local/bin/postgres-auth-server -c /etc/postgres-auth-server/config.yaml check
-User=$1
+User=$combatuser
 
 [Install]
 WantedBy=multi-user.target
