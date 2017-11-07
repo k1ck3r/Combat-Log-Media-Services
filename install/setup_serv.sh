@@ -1,10 +1,10 @@
 #!/usr/bin/env sh
 
 ####################### IMPORTANT #########################
-#														  #
+#							  #
 # before starting the setup procedure, install PostgreSQL #
-#     and configure SQL's db/pass/user on line 344		  #
-#														  #
+#     and configure SQL's db/pass/user on line 344	  #
+#							  #
 ####################### IMPORTANT #########################
 
 set -e
