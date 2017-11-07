@@ -1,0 +1,284 @@
+#!/usr/bin/env sh
+set -e
+
+if test "$(id -u)" != "0" ; then
+  printf "Run this script as root\n"
+  exit 1
+fi
+
+case "$0" in
+  /*) my_dir=$(dirname "$0") ;;
+  *) my_dir=$(dirname "$(pwd)/${0#./}") ;;
+esac
+
+. ${my_dir}/versions
+
+if test -f /etc/os-release ; then
+  DISTRO=$(. /etc/os-release && printf "${ID}" )
+  RELEASE=$(. /etc/os-release && printf "${VERSION_ID}" )
+elif test -f /etc/fedora-release ; then
+  DISTRO="fedora"
+  RELEASE="Unknown"
+elif test -f /etc/debian_version ; then
+  DISTRO="debian"
+  RELEASE="Unknown"
+elif test -f /etc/redhat-release ; then
+  DISTRO="centos"
+  RELEASE="Unknown"
+elif test -f /etc/alpine-release ; then
+  DISTRO="alpine"
+  RELEASE="Unknown"
+fi
+
+if test -z "${DISTRO}" ; then
+  printf "Unable to determine distro\n"
+  exit 1
+fi
+
+if ! test command -v pushd 1>/dev/null 2>&1 ; then
+pushd() {
+    if test -z "PUSHD_STACK" ; then
+        PUSHD_STACK="$PWD"
+    else
+        PUSHD_STACK="$PUSHD_STACK;$PWD"
+    fi
+    cd "$1"
+}
+popd() {
+    if test -n ${IFS+x} ; then
+      OLDIFS="${IFS}"
+    fi
+    IFS=";"
+    NEW_PUSHD_STACK=""
+    NEW_DIR=""
+    for dir in ${PUSHD_STACK} ; do
+      if test -z "${NEW_DIR}" ; then
+        NEW_DIR="${dir}"
+      else
+        if test -z "${NEW_PUSHD_STACK}" ; then
+          NEW_PUSHD_STACK="${NEW_DIR}"
+        else
+          NEW_PUSHD_STACK="${NEW_PUSHD_STACK};${NEW_DIR}"
+        fi
+        NEW_DIR="${dir}"
+      fi
+    done
+    if test -n ${OLDIFS+x} ; then
+      IFS="${OLDIFS}"
+    else
+      unset IFS
+    fi
+    cd "${NEW_DIR}"
+    PUSHD_STACK="${NEW_PUSHD_STACK}"
+    unset NEW_PUSHD_STACK
+    unset NEW_DIR
+}
+fi
+
+if test "${DISTRO}" = "ubuntu"; then
+  UPDATE_CMD="apt-get update"
+  INSTALL_CMD="apt-get install -y"
+  PACKAGE_LIST="git ffmpeg libyaml-dev"
+
+elif test "${DISTRO}" = "debian" ; then
+  UPDATE_CMD="apt-get update"
+  INSTALL_CMD="apt-get install -y"
+  PACKAGE_LIST="git ffmpeg libyaml-dev"
+
+elif test "${DISTRO}" = "centos" -o "${DISTRO}" = "rhel" ; then
+  INSTALL_CMD="yum install -y"
+  PACKAGE_LIST="git ffmpeg yaml-devel"
+
+elif test "${DISTRO}" = "fedora" ; then
+  INSTALL_CMD="dnf install -y"
+  PACKAGE_LIST="git ffmpeg yaml-devel"
+
+elif test "${DISTRO}" = "alpine" ; then
+  UPDATE_CMD="apk update"
+  INSTALL_CMD="apk add"
+  PACKAGE_LIST="git ffmpeg yaml-dev"
+
+elif test "${DISTRO}" = "opensuse" ; then
+  INSTALL_CMD="zypper install -y"
+  PACKAGE_LIST="git ffmpeg yaml-devel"
+
+elif test "${DISTRO}" = "arch" ; then
+  UPDATE_CMD="pacman -Sy"
+  INSTALL_CMD="pacman -S --needed --noconfirm"
+  PACKAGE_LIST="git ffmpeg libyaml-devel"
+
+fi
+
+if test -z "${INSTALL_CMD}" ; then
+  printf "${DISTRO} is not supported - please open an issue\n"
+  exit 1
+fi
+
+PACKAGE_LOGFILE=$(mktemp)
+
+if test -n "${UPDATE_CMD}" ; then
+  printf "Updating package lists...\n" | tee -a $PACKAGE_LOGFILE
+  ${UPDATE_CMD} >> $PACKAGE_LOGFILE 2>&1
+fi
+
+printf "Installing packages ${PACKAGE_LIST}\n" | tee -a $PACKAGE_LOGFILE
+${INSTALL_CMD} ${PACKAGE_LIST} >> $PACKAGE_LOGFILE 2>&1
+
+if ! test -d "/src" ; then
+  mkdir "/src"
+fi
+
+if ! test -d "/opt" ; then
+  mkdir "/opt"
+fi
+
+MISC_LOGFILE=$(mktemp)
+
+printf "Cloning/updating setup-openresty script (details in ${MISC_LOGFILE})\n" | tee -a $MISC_LOGFILE
+if ! test -d /opt/setup-openresty ; then
+  git clone https://github.com/jprjr/setup-openresty.git /opt/setup-openresty >> $MISC_LOGFILE 2>&1
+else
+  pushd /opt/setup-openresty
+  git pull origin master >> $MISC_LOGFILE 2>&1
+  popd
+fi
+
+pushd /opt/setup-openresty
+./setup-openresty \
+  --prefix=/opt/openresty-rtmp \
+  --with-rtmp \
+  --with-stream \
+  --with-stream-lua \
+  --with-stream-ssl
+popd
+
+LUAROCKS=/opt/openresty-rtmp/bin/luarocks
+
+if ! test -f /opt/sockexec-${SOCKEXEC_VERSION}.tar.gz ; then
+  printf "Downloading sockexec...\n" | tee -a $MISC_LOGFILE
+  curl -s -R -L -o /opt/sockexec-${SOCKEXEC_VERSION}.tar.gz \
+    "https://github.com/jprjr/sockexec/releases/download/${SOCKEXEC_VERSION}/sockexec-x86_64-linux-musl.tar.gz"
+fi
+
+if ! test -d /opt/sockexec-${SOCKEXEC_VERSION} ; then
+  mkdir /opt/sockexec-${SOCKEXEC_VERSION}
+  tar xf /opt/sockexec-${SOCKEXEC_VERSION}.tar.gz -C /opt/sockexec-${SOCKEXEC_VERSION} -o
+fi
+
+rm -f /opt/sockexec
+ln -s sockexec-${SOCKEXEC_VERSION} /opt/sockexec
+
+printf "Cloning/updating postgres-auth-server...\n" | tee -a $MISC_LOGFILE
+if ! test -d /opt/postgres-auth-server ; then
+  git clone https://github.com/jprjr/postgres-auth-server.git /opt/postgres-auth-server >> $MISC_LOGFILE 2>&1
+else
+  pushd /opt/postgres-auth-server
+  git pull origin master >> $MISC_LOGFILE 2>&1
+  popd
+fi
+
+printf "Cloning/updating multistreamer...\n" | tee -a $MISC_LOGFILE
+if ! test -d /opt/multistreamer ; then
+  git clone https://github.com/jprjr/multistreamer.git /opt/multistreamer >> $MISC_LOGFILE 2>&1
+else
+  pushd /opt/multistreamer
+  git fetch --tags origin >> $MISC_LOGFILE 2>&1
+  git checkout $(git describe --tags --abbrev=0) >> $MISC_LOGFILE 2>&1
+  popd
+fi
+
+printf "Installing Lua Modules for postgres-auth-server...(see $MISC_LOGFILE)\n" | tee -a $MISC_LOGFILE
+pushd /opt/postgres-auth-server
+$LUAROCKS --tree=lua_modules install --only-deps /opt/postgres-auth-server/rockspecs/postgres-auth-server-dev-1.rockspec >> $MISC_LOGFILE 2>&1
+popd
+
+printf "Installing Lua modules for multistreamer...(see $MISC_LOGFILE)\n" | tee -a $MISC_LOGFILE
+pushd /opt/multistreamer
+$LUAROCKS --tree=lua_modules install lua-cjson >> $MISC_LOGFILE 2>&1
+$LUAROCKS --tree=lua_modules install lua-resty-exec $LUA_LUA_RESTY_EXEC_VERSION >> $MISC_LOGFILE 2>&1
+$LUAROCKS --tree=lua_modules install lua-resty-jit-uuid $LUA_LUA_RESTY_JIT_UUID_VERSION >> $MISC_LOGFILE 2>&1
+$LUAROCKS --tree=lua_modules install lua-resty-string $LUA_LUA_RESTY_STRING_VERSION >> $MISC_LOGFILE 2>&1
+$LUAROCKS --tree=lua_modules install lua-resty-http $LUA_LUA_RESTY_HTTP_VERSION >> $MISC_LOGFILE 2>&1
+$LUAROCKS --tree=lua_modules install lapis $LUA_LAPIS_VERSION >> $MISC_LOGFILE 2>&1
+$LUAROCKS --tree=lua_modules install etlua $LUA_ETLUA_VERSION >> $MISC_LOGFILE 2>&1
+$LUAROCKS --tree=lua_modules install luaposix $LUA_LUAPOSIX_VERSION >> $MISC_LOGFILE 2>&1
+$LUAROCKS --tree=lua_modules install luafilesystem $LUA_LUAFILESYSTEM_VERSION >> $MISC_LOGFILE 2>&1
+$LUAROCKS --tree=lua_modules install whereami $LUA_WHEREAMI_VERSION >> $MISC_LOGFILE 2>&1
+popd
+
+cat > /usr/local/bin/postgres-auth-server <<EOF
+#!/usr/bin/env bash
+
+exec /opt/postgres-auth-server/bin/postgres-auth-server -l /opt/openresty-rtmp/luajit/bin/luajit "\$@"
+EOF
+
+cat > /usr/local/bin/multistreamer <<EOF
+#!/usr/bin/env bash
+
+exec /opt/multistreamer/bin/multistreamer -l /opt/openresty-rtmp/luajit/bin/luajit "\$@"
+EOF
+
+chmod +x /usr/local/bin/postgres-auth-server
+chmod +x /usr/local/bin/multistreamer
+
+rm -f /usr/local/bin/sockexec
+ln -s /opt/sockexec/bin/sockexec /usr/local/bin/sockexec
+chmod +x /usr/local/bin/sockexec
+
+printf "Creating combatlog user\n"
+if command -v useradd >/dev/null 2>&1 ; then
+  useradd -m -d /var/lib/combatlog \
+    -r -s /usr/sbin/nologin combatlog || true
+elif command -v adduser >/dev/null 2>&1 ; then
+  adduser -h /var/lib/combatlog \
+    -s /sbin/nologin \
+    -S -D combatlog || true
+else
+  printf "Unable to add combatlog user\n"
+  exit 1
+fi
+
+
+if test -d /etc/systemd/system ; then
+  cat > /etc/systemd/system/multistreamer.service <<EOF
+[Unit]
+Description=multistreamer
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/multistreamer -e production run
+User=combatlog
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  cat > /etc/systemd/system/sockexec.service <<EOF
+[Unit]
+Description=sockexec
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/sockexec -t0 /tmp/exec.sock
+User=combatlog
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  cat > /etc/systemd/system/postgres-auth-server.service <<EOF
+[Unit]
+Description=postgres-auth-server
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/postgres-auth-server -c /etc/postgres-auth-server/config.yaml run
+ExecStartPre=/usr/local/bin/postgres-auth-server -c /etc/postgres-auth-server/config.yaml check
+User=combatlog
+
+[Install]
+WantedBy=multi-user.target
+EOF
+else
+  printf "systemd not installed, not making service files\n"
+fi
