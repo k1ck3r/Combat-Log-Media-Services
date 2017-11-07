@@ -2,7 +2,7 @@
 
 ####################### IMPORTANT #########################
 #							  #
-# before starting the setup procedure, install PostgreSQL #
+# Before starting the setup procedure, install PostgreSQL #
 #     and configure SQL's db/pass/user on line 344	  #
 #							  #
 ####################### IMPORTANT #########################
@@ -18,16 +18,15 @@ domain=$1
 
 if test -z "${domain}" ; then
   printf "Usage: $0 <domain-name>\n"
-  printf "  domain will be used for Let's Encrypt certificates\n"
   exit 1
 fi
 
-printf "WARNING: this script is meant for doing a from-scratch install\n"
-printf "of multistreamer to a brand-new server. If you want to just\n"
-printf "install Multistreamer without possibly breaking anything, run\n"
-printf "./install\n\n"
+#printf "WARNING: this script is meant for doing a from-scratch install\n"
+#printf "of multistreamer to a brand-new server. If you want to just\n"
+#printf "install Multistreamer without possibly breaking anything, run\n"
+#printf "./install\n\n"
 printf "This WILL disable apache, if running, and setup nginx to serve\n"
-printf "$domain\n"
+#printf "$domain\n"
 printf "Please type Y to continue, anything else to quit\n"
 
 read input
@@ -443,9 +442,9 @@ config({'production'}, {
   -- postgres connection settings
   postgres = {
     host = '127.0.0.1',
-    user = 'combatlog',
-    password = 'x4x0b3x0',
-    database = 'combatlog'
+    user = '$SQLUSER',
+    password = '$SQLPASS',
+    database = '$SQLDB'
   },
 
   -- nginx http "listen" directive, see
