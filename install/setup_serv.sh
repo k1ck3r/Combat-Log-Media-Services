@@ -1,4 +1,12 @@
 #!/usr/bin/env sh
+
+####################### IMPORTANT #########################
+#														  #
+# before starting the setup procedure, install PostgreSQL #
+#     and configure SQL's db/pass/user on line 344		  #
+#														  #
+####################### IMPORTANT #########################
+
 set -e
 
 if test "$(id -u)" != "0" ; then
@@ -333,9 +341,13 @@ printf "## Creating psql_auth user and database...\n" | tee -a $LOGFILE
 sudo -u postgres psql -c "create user psql_auth with password 'psql_auth'" >/dev/null 2>&1 || true
 sudo -u postgres psql -c "create database psql_auth with owner psql_auth" >/dev/null 2>&1 || true
 
-printf "## Creating combatlog user and database...\n" | tee -a $LOGFILE
-sudo -u postgres psql -c "create user combatlog with password 'x4x0b3x0'" >/dev/null 2>&1 || true
-sudo -u postgres psql -c "create database combatlog with owner combatlog" >/dev/null 2>&1 || true
+SQLUSER=
+SQLPASS=
+SQLDB=
+
+printf "## Creating $SQLUSER user and database...\n" | tee -a $LOGFILE
+sudo -u postgres psql -c "create user $SQLUSER with password '$SQLPASS'" >/dev/null 2>&1 || true
+sudo -u postgres psql -c "create database $SQLDB with owner $SQLUSER" >/dev/null 2>&1 || true
 
 printf "## Generating multistreamer config file (/opt/multistreamer/config.lua) ...\n" | tee -a $LOGFILE
 
