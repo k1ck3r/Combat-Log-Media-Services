@@ -340,9 +340,9 @@ printf "## Creating psql_auth user and database...\n" | tee -a $LOGFILE
 sudo -u postgres psql -c "create user psql_auth with password 'psql_auth'" >/dev/null 2>&1 || true
 sudo -u postgres psql -c "create database psql_auth with owner psql_auth" >/dev/null 2>&1 || true
 
-SQLUSER=
-SQLPASS=
-SQLDB=
+export SQLUSER=combatlog
+export SQLPASS=
+export SQLDB=combatlog
 
 printf "## Creating $SQLUSER user and database...\n" | tee -a $LOGFILE
 sudo -u postgres psql -c "create user $SQLUSER with password '$SQLPASS'" >/dev/null 2>&1 || true
