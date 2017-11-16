@@ -336,10 +336,6 @@ EOF
 
 systemctl restart haproxy.service >>$LOGFILE 2>&1
 
-printf "## Creating psql_auth user and database...\n" | tee -a $LOGFILE
-sudo -u postgres psql -c "create user psql_auth with password 'psql_auth'" >/dev/null 2>&1 || true
-sudo -u postgres psql -c "create database psql_auth with owner psql_auth" >/dev/null 2>&1 || true
-
 export SQLUSER=combatlog
 export SQLPASS=
 export SQLDB=combatlog
